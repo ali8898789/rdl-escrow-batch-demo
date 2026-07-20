@@ -49,7 +49,7 @@ let state = structuredClone(initialState);
 const planStartDate = "2026/7/1";
 const planEndDate = "2026/7/15";
 const topupAverageDays = 3;
-const accessPasswordHash = "f95a35cebf97e8f790506129495def9705af54ead0cab9c4972b455a0b60bb06";
+const accessPasswordHash = "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791";
 const channelActuals = {
   bca: {
     label: "BCA",
