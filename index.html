@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RDL / Escrow 批次清算演示</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="auth-locked">
+    <section class="auth-screen" id="authScreen" aria-label="访问验证">
+      <form class="auth-card" id="authForm">
+        <div>
+          <p class="eyebrow">Private Demo</p>
+          <h1>RDL / Escrow 批次清算演示</h1>
+        </div>
+        <label class="auth-field">
+          <span>访问密码</span>
+          <input id="accessPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary auth-submit" type="submit">进入演示</button>
+        <p class="auth-error" id="authError" role="alert"></p>
+      </form>
+    </section>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Indonesia P2P Settlement Console</p>
+          <h1>RDL / Escrow 批次清算演示</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="resetDemo" aria-label="重置演示" title="重置演示">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68V3H2v9h9v-2H5.4l2.35-2.24A6 6 0 1 1 6 12H4Z"/></svg>
+          </button>
+          <div class="status-pill" id="systemStatus">
+            <span class="status-dot"></span>
+            微批运行中
+          </div>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="panel metrics-panel" aria-label="核心指标">
+          <div class="metric">
+            <span>7/1-7/15 放款</span>
+            <strong id="metricDisbursed">Rp 7.20B</strong>
+            <small>实际已出 Escrow</small>
+          </div>
+          <div class="metric">
+            <span>7/1-7/15 还款</span>
+            <strong id="metricRepaid">Rp 5.80B</strong>
+            <small>已入 Escrow</small>
+          </div>
+          <div class="metric">
+            <span>放款微批</span>
+            <strong id="metricFundingBatch">Rp 0</strong>
+            <small id="fundingBatchCount">0 笔待执行</small>
+          </div>
+          <div class="metric">
+            <span>还款微批</span>
+            <strong id="metricRepaymentBatch">Rp 0</strong>
+            <small id="repaymentBatchCount">0 笔待执行</small>
+          </div>
+        </section>
+
+        <section class="panel controls-panel" aria-label="清算策略">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4V5Zm2 6h12v2H6v-2Zm3 6h6v2H9v-2Z"/></svg>
+            <h2>清算策略</h2>
+          </div>
+          <div class="control-grid">
+            <label class="field">
+              <span>微批间隔</span>
+              <input id="batchInterval" type="range" min="5" max="30" step="5" value="10" />
+              <output id="batchIntervalValue">10 分钟</output>
+            </label>
+            <label class="field">
+              <span>Ready batch 容忍</span>
+              <input id="bufferWindow" type="range" min="0" max="30" step="5" value="10" />
+              <output id="bufferWindowValue">10 分钟</output>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="fastLaneToggle" type="checkbox" checked />
+              <span></span>
+              机构 lender 极速通道
+            </label>
+            <label class="toggle">
+              <input id="eodClearToggle" type="checkbox" checked />
+              <span></span>
+              日终 Escrow 清零
+            </label>
+          </div>
+        </section>
+
+        <section class="panel queue-panel" aria-label="待清算队列">
+          <div class="panel-header">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v4H3V5Zm0 6h18v8H3v-8Zm2 2v4h14v-4H5Z"/></svg>
+              <h2>待清算队列</h2>
+            </div>
+            <div class="segmented" role="tablist" aria-label="队列类型">
+              <button class="active" data-tab="loans" role="tab">放款</button>
+              <button data-tab="repayments" role="tab">还款</button>
+            </div>
+          </div>
+          <div class="table-wrap active" id="loansTableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>订单</th>
+                  <th>金额</th>
+                  <th>SLA</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="loansTable"></tbody>
+            </table>
+          </div>
+          <div class="table-wrap" id="repaymentsTableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>还款</th>
+                  <th>金额</th>
+                  <th>入账</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="repaymentsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel batch-panel" aria-label="批次清算台">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6ZM6 6v2h2V6H6Zm10 0v2h2V6h-2ZM6 16v2h2v-2H6Zm10 0v2h2v-2h-2Z"/></svg>
+            <h2>批次清算台</h2>
+          </div>
+
+          <div class="batch-stack">
+            <div class="batch-card">
+              <div>
+                <span class="badge badge-blue">Disbursement</span>
+                <h3>放款微批</h3>
+                <p id="fundingBatchMeta">等待生成批次</p>
+              </div>
+              <strong id="fundingBatchAmount">Rp 0</strong>
+            </div>
+            <div class="batch-card">
+              <div>
+                <span class="badge badge-green">Repayment</span>
+                <h3>还款微批</h3>
+                <p id="repaymentBatchMeta">等待生成批次</p>
+              </div>
+              <strong id="repaymentBatchAmount">Rp 0</strong>
+            </div>
+          </div>
+
+          <div class="action-grid">
+            <button class="primary" id="buildFundingBatch">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Zm-5 8.2-4 2.2 9 5 9-5-4-2.2-5 2.8-5-2.8Z"/></svg>
+              生成放款微批
+            </button>
+            <button id="executeFundingBatch">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h12.2l-4.6-4.6L13 5l7 7-7 7-1.4-1.4 4.6-4.6H4v-2Z"/></svg>
+              执行放款
+            </button>
+            <button class="primary green" id="buildRepaymentBatch">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13H7.8l4.6 4.6L11 19l-7-7 7-7 1.4 1.4L7.8 11H20v2Z"/></svg>
+              生成还款微批
+            </button>
+            <button id="executeRepaymentBatch">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v2H5V5Zm2 4h10v10H7V9Zm2 2v6h6v-6H9Z"/></svg>
+              执行还款
+            </button>
+          </div>
+
+          <button class="danger-action" id="simulateExcess">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v7h-2V7Zm0 9h2v2h-2v-2Zm1-14 10 19H2L12 2Zm0 4.3L5.3 19h13.4L12 6.3Z"/></svg>
+            模拟无订单预充值 Rp 1.20B
+          </button>
+        </section>
+
+        <section class="panel compliance-panel" aria-label="合规额度">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm0 2.1 6 2.25V11c0 3.9-2.45 7.6-6 8.85C8.45 18.6 6 14.9 6 11V6.35l6-2.25Z"/></svg>
+            <h2>额度与 Aging</h2>
+          </div>
+
+          <div class="limit-block">
+            <div class="limit-label">
+              <span>RDL -> Escrow / 放款额度</span>
+              <strong id="fundingRatioText">100%</strong>
+            </div>
+            <div class="progress"><span id="fundingRatioBar"></span></div>
+            <small id="fundingLimitText">已用 Rp 7.20B / 上限 Rp 7.20B</small>
+          </div>
+
+          <div class="limit-block">
+            <div class="limit-label">
+              <span>Escrow -> RDL / 还款额度</span>
+              <strong id="repaymentRatioText">100%</strong>
+            </div>
+            <div class="progress green"><span id="repaymentRatioBar"></span></div>
+            <small id="repaymentLimitText">已用 Rp 5.80B / 上限 Rp 5.80B</small>
+          </div>
+
+          <div class="aging-grid">
+            <div><span>0-15m</span><strong id="agingFresh">Rp 0</strong></div>
+            <div><span>15-60m</span><strong id="agingWarm">Rp 0</strong></div>
+            <div><span>>60m</span><strong id="agingLate">Rp 0</strong></div>
+          </div>
+
+          <div class="alert-box" id="alertBox">
+            <strong>合规状态正常</strong>
+            <span>Escrow 无未解释余额。</span>
+          </div>
+        </section>
+
+        <section class="panel daily-plan-panel" aria-label="2026 年 7 月分渠道按天操作计划">
+          <div class="panel-header">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v3h6V2h2v3h3v17H4V5h3V2Zm11 8H6v10h12V10ZM6 7v1h12V7H6Zm2 5h3v3H8v-3Zm5 0h3v3h-3v-3Z"/></svg>
+              <h2>2026 年 7 月分渠道按天操作计划</h2>
+            </div>
+            <div class="plan-control-row">
+              <div class="segmented channel-mode" role="tablist" aria-label="渠道">
+                <button class="active" data-plan-channel="all" role="tab">合计</button>
+                <button data-plan-channel="bca" role="tab">BCA</button>
+                <button data-plan-channel="instamoney" role="tab">instamoney</button>
+              </div>
+              <div class="segmented plan-mode" role="tablist" aria-label="计划模式">
+                <button data-plan-mode="raw" role="tab">原方案</button>
+                <button class="active" data-plan-mode="controlled" role="tab">风控版</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="plan-summary">
+            <div>
+              <span>7/1-7/15 充值</span>
+              <strong id="planTopupTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>3 日基准充值</span>
+              <strong id="planBaseTopupTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>补充微批充值</span>
+              <strong id="planSupplementalTopupTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>7/1-7/15 放款</span>
+              <strong id="planDisbursementTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>7/1-7/15 提现</span>
+              <strong id="planWithdrawTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>7/1-7/15 还款</span>
+              <strong id="planRepaymentTotal">Rp 0</strong>
+            </div>
+            <div>
+              <span>最大 Escrow 暴露</span>
+              <strong id="planMaxExposure">Rp 0</strong>
+            </div>
+            <div>
+              <span>7/1 Escrow 期初</span>
+              <strong id="planOpeningEscrow">Rp 0</strong>
+            </div>
+            <div>
+              <span>7/15 Escrow 期末</span>
+              <strong id="planClosingEscrow">Rp 0</strong>
+            </div>
+            <div>
+              <span>需关注天数</span>
+              <strong id="planFlaggedDays">0 天</strong>
+            </div>
+          </div>
+
+          <div class="plan-assessment" id="planAssessment">
+            <strong>评估结论</strong>
+            <span>等待计划计算。</span>
+          </div>
+
+          <div class="daily-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>充值合计 RDL -> Escrow</th>
+                  <th>3 日基准充值</th>
+                  <th>补充微批充值</th>
+                  <th>提现 Escrow -> RDL</th>
+                  <th>实际放款</th>
+                  <th>当日还款</th>
+                  <th>Escrow 期初余额</th>
+                  <th>Escrow 期末余额</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="dailyPlanTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel flow-panel" aria-label="资金路径">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a4 4 0 0 1 4-4h3V5l5 4-5 4v-3H9a2 2 0 0 0 0 4h1v2H9a4 4 0 0 1-4-4Zm9-4h1a4 4 0 1 1 0 8h-3v3l-5-4 5-4v3h3a2 2 0 1 0 0-4h-1V8Z"/></svg>
+            <h2>资金路径</h2>
+          </div>
+          <div class="flow-map" id="flowMap">
+            <div class="node lender"><span>Lender RDL</span><strong id="nodeRdl">Rp 18.40B</strong></div>
+            <div class="arrow"><span></span></div>
+            <div class="node escrow"><span>Escrow</span><strong id="nodeEscrow">Rp 0</strong></div>
+            <div class="arrow"><span></span></div>
+            <div class="node borrower"><span>Borrower / RDL</span><strong id="nodeDestination">Rp 13.00B</strong></div>
+          </div>
+        </section>
+
+        <section class="panel ledger-panel" aria-label="清算流水">
+          <div class="panel-header">
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4V3Zm2 2v14h12V5H6Zm2 2h8v2H8V7Zm0 4h8v2H8v-2Zm0 4h5v2H8v-2Z"/></svg>
+              <h2>清算流水</h2>
+            </div>
+            <button class="text-button" id="closeDay">日终清零</button>
+          </div>
+          <div class="ledger-list" id="ledgerList"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
